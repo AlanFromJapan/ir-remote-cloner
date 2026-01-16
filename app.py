@@ -23,6 +23,17 @@ except ImportError:
     print("Install with: pip install pyserial")
 
 
+class terminal_colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class Database:
     """Handles SQLite database operations"""
     
@@ -113,6 +124,22 @@ class Database:
             conn.commit()
         finally:
             conn.close()
+    
+    def get_keys_for_remote(self, remote_id: int) -> List[Tuple]:
+        """Get all keys for a specific remote"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT key_name, protocol, address, command, comment 
+            FROM Key 
+            WHERE remote_id = ? 
+            ORDER BY key_name
+        """, (remote_id,))
+        keys = cursor.fetchall()
+        conn.close()
+        
+        return keys
 
 
 class SerialHandler:
@@ -157,6 +184,11 @@ class SerialHandler:
         """Check if serial is connected"""
         return self.connection and self.connection.is_open
 
+    def flush_input(self):
+        """Flush input buffer"""
+        if self.connection and self.connection.is_open:
+            self.connection.reset_input_buffer()
+
 
 class InputHandler:
     """Handles keyboard input"""
@@ -197,11 +229,12 @@ class IRRemoteCloner:
     
     def print_menu(self):
         """Print main menu"""
-        print("\nWhat would you like to do?")
+        print(terminal_colors.HEADER + "\nWhat would you like to do?" + terminal_colors.ENDC)
         print("1 - Create a new remote")
         print("2 - List remotes")
         print("3 - Register new keys")
-        print("q - Quit")
+        print("4 - View registered keys")
+        print(terminal_colors.FAIL + "q - Quit" + terminal_colors.ENDC)
         print()
     
     def create_new_remote(self):
@@ -276,18 +309,20 @@ class IRRemoteCloner:
         
         
         # Main key registration loop
-        while True:
-            print("Waiting for IR codes... (Press ESC to exit)")
 
+        print(terminal_colors.HEADER + "Waiting for IR codes... (Press ESC to exit)" + terminal_colors.ENDC)
+        while True:
             # Check for ESC key
             if InputHandler.check_escape():
-                print("\nExiting key registration mode")
+                print(terminal_colors.FAIL + "\nExiting key registration mode" + terminal_colors.ENDC)
                 break
             
             # Check for serial data
             line = None
             if self.serial_handler.is_connected():
                 line = self.serial_handler.read_line()
+                #trash whatever is left in the buffer to avoid lag
+                #self.serial_handler.flush_input()
             
             if line:
                 # Parse the received data
@@ -303,11 +338,11 @@ class IRRemoteCloner:
                     # Get key name
                     key_name = None
                     while not key_name:
-                        key_name = input("Enter key name: ").strip()
-                        if not key_name:
-                            print("You must input a key name or press " " (SPACE) to cancel.")
+                        key_name = input("Enter key name or empty to cancel: ").strip()
+                        if not key_name or key_name == '':
+                            break
                     
-                    if key_name == ' ':
+                    if key_name == '':
                         print("Key registration cancelled for this code.")
                         continue
                     
@@ -321,9 +356,58 @@ class IRRemoteCloner:
                     
                 except Exception as e:
                     print(f"Error saving key: {e}")
-        
+
+                print(terminal_colors.HEADER + "Waiting for IR codes... (Press ESC to exit)" + terminal_colors.ENDC)
+
+
         # Cleanup
         self.serial_handler.disconnect()
+    
+    def view_registered_keys(self):
+        """Handle viewing registered keys for a remote"""
+        print("\n--- View Registered Keys ---")
+        
+        # Show available remotes
+        remotes = self.db.list_remotes()
+        if not remotes:
+            print("No remotes found. Please create a remote first.")
+            return
+        
+        print("Available remotes:")
+        for remote_id, name, comment in remotes:
+            print(f"  {remote_id}: {name}")
+        
+        # Get remote ID
+        try:
+            remote_id = int(input("\nEnter remote ID: "))
+            remote = self.db.get_remote(remote_id)
+            if not remote:
+                print("Error: Invalid remote ID")
+                return
+        except ValueError:
+            print("Error: Invalid remote ID")
+            return
+        
+        print(f"\nRegistered keys for remote: {remote[1]}")
+        
+        # Get keys for this remote
+        keys = self.db.get_keys_for_remote(remote_id)
+        
+        if not keys:
+            print("No keys registered for this remote.")
+            return
+        
+        # Display keys in a table format
+        print("\n" + "-" * 80)
+        print(f"{'Key Name':<15} {'Protocol':<12} {'Address':<10} {'Command':<10} {'Comment':<20}")
+        print("-" * 80)
+        
+        for key_name, protocol, address, command, comment in keys:
+            comment_display = comment if comment else ""
+            print(f"{key_name:<15} {protocol:<12} {address:<10} {command:<10} {comment_display:<20}")
+        
+        print("-" * 80)
+        print(f"Total keys: {len(keys)}")
     
     def run(self):
         """Main application loop"""
@@ -340,6 +424,8 @@ class IRRemoteCloner:
                     self.list_remotes()
                 elif choice == '3':
                     self.register_new_keys()
+                elif choice == '4':
+                    self.view_registered_keys()
                 elif choice == 'q':
                     print("\nGoodbye!")
                     break
