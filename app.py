@@ -4,6 +4,7 @@ IR Remote Cloner - Command Line Application
 Connects to a serial device to capture IR remote codes and stores them in SQLite database.
 """
 
+import time
 import sqlite3
 import sys
 import os
@@ -33,6 +34,7 @@ class terminal_colors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+    SERIAL_DATA = '\033[92m'
 
 class Database:
     """Handles SQLite database operations"""
@@ -321,38 +323,53 @@ class IRRemoteCloner:
             line = None
             if self.serial_handler.is_connected():
                 line = self.serial_handler.read_line()
-                #trash whatever is left in the buffer to avoid lag
-                #self.serial_handler.flush_input()
             
             if line:
+                #print the line
+                print(terminal_colors.SERIAL_DATA + f"(INPUT)   :{line}" + terminal_colors.ENDC) 
+
+                while True:
+                    #purge any extra data
+                    time.sleep(0.2)            
+                    purge = self.serial_handler.read_line()
+                    if not purge:
+                        break
+                    else:
+                        print(terminal_colors.SERIAL_DATA + f"(ignored) :{purge}" + terminal_colors.ENDC)
+
+
                 # Parse the received data
                 try:
+                    register = False
                     parts = line.split(';')
                     if len(parts) <= 3:
-                        print(f"Invalid data format: {line} need at least 3 parts separated by ';'")
-                        continue
+                        print(terminal_colors.FAIL + f"Invalid data format: {line} need at least 3 parts separated by ';'" + terminal_colors.ENDC)
+                    else:
+                        register = True
                     
-                    protocol, addr, command = parts[0:3]
-                    print(f"Received: Protocol={protocol}, Address={addr}, Command={command}")
-                    
-                    # Get key name
-                    key_name = None
-                    while not key_name:
-                        key_name = input("Enter key name or empty to cancel: ").strip()
-                        if not key_name or key_name == '':
-                            break
-                    
-                    if key_name == '':
-                        print("Key registration cancelled for this code.")
-                        continue
-                    
-                    # Get optional comment
-                    comment = input("Enter comment (optional): ").strip()
-                    comment = comment if comment else None
-                    
-                    # Save to database
-                    self.db.add_key(remote_id, protocol, addr, command, key_name, comment)
-                    print(f"Key '{key_name}' saved successfully")
+                    if register:
+                        protocol, addr, command = parts[0:3]
+                        print(f"Received: Protocol={protocol}, Address={addr}, Command={command}")
+                        
+                        # Get key name
+                        key_name = None
+                        while not key_name:
+                            key_name = input("Enter key name or empty to cancel: ").strip()
+                            if not key_name or key_name == '':
+                                break
+                        
+                        if key_name == '':
+                            print(terminal_colors.FAIL + "Key registration cancelled for this code." + terminal_colors.ENDC)
+                            register = False
+                        
+                        if register:
+                            # Get optional comment
+                            comment = input("Enter comment (optional): ").strip()
+                            comment = comment if comment else None
+                            
+                            # Save to database
+                            self.db.add_key(remote_id, protocol, addr, command, key_name, comment)
+                            print(terminal_colors.OKBLUE + f"Key '{key_name}' saved successfully" + terminal_colors.ENDC)
                     
                 except Exception as e:
                     print(f"Error saving key: {e}")
