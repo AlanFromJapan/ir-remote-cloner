@@ -236,6 +236,7 @@ class IRRemoteCloner:
         print("2 - List remotes")
         print("3 - Register new keys")
         print("4 - View registered keys")
+        print("5 - Read serial data (debug)")
         print(terminal_colors.FAIL + "q - Quit" + terminal_colors.ENDC)
         print()
     
@@ -380,6 +381,39 @@ class IRRemoteCloner:
         # Cleanup
         self.serial_handler.disconnect()
     
+
+    def debug_show_serial(self):
+        """Handle debug serial data reading"""
+        print("\n--- (DEBUG) Show serial data ---")
+        
+        # Try to connect to serial
+        if SERIAL_AVAILABLE:
+            if not self.serial_handler.connect():
+                print(f"Warning: Could not connect to serial port {self.serial_handler.port}")
+                return
+            
+        print(terminal_colors.HEADER + "Waiting for IR codes... (Press ESC to exit)" + terminal_colors.ENDC)
+        while True:
+            # Check for ESC key
+            if InputHandler.check_escape():
+                print(terminal_colors.FAIL + "\nExiting debug view" + terminal_colors.ENDC)
+                break
+            
+            # Check for serial data
+            line = None
+            if self.serial_handler.is_connected():
+                while True:
+                    line = self.serial_handler.read_line()
+                    if not line:
+                        break
+                    print(terminal_colors.SERIAL_DATA + f"{line}" + terminal_colors.ENDC) 
+                    time.sleep(0.2)            
+
+        # Cleanup
+        self.serial_handler.disconnect()
+
+
+
     def view_registered_keys(self):
         """Handle viewing registered keys for a remote"""
         print("\n--- View Registered Keys ---")
@@ -443,6 +477,8 @@ class IRRemoteCloner:
                     self.register_new_keys()
                 elif choice == '4':
                     self.view_registered_keys()
+                elif choice == '5':
+                    self.debug_show_serial()
                 elif choice == 'q':
                     print("\nGoodbye!")
                     break
