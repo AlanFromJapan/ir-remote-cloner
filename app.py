@@ -13,6 +13,37 @@ import termios
 import tty
 import argparse
 from typing import Optional, Tuple, List
+from  enum import Enum
+
+#from IRProtocol.h
+class Protocol(Enum):
+    UNKNOWN = 0
+    PULSE_WIDTH = 1
+    PULSE_DISTANCE = 2
+    APPLE = 3
+    DENON = 4
+    JVC = 5
+    LG = 6
+    LG2 = 7
+    NEC = 8
+    NEC2 = 9
+    ONKYO = 10
+    PANASONIC = 11
+    KASEIKYO = 12
+    KASEIKYO_DENON = 13
+    KASEIKYO_SHARP = 14
+    KASEIKYO_JVC = 15
+    KASEIKYO_MITSUBISHI = 16
+    RC5 = 17
+    RC6 = 18
+    RC6A = 19
+    SAMSUNG = 20
+    SAMSUNGLG = 21
+    SAMSUNG48 = 22
+    SHARP = 23
+    SONY = 24
+
+
 
 # Try to import serial, handle gracefully if not available
 try:
