@@ -126,7 +126,7 @@ class Database:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id, name, comment FROM Remote ORDER BY name")
+        cursor.execute("SELECT id, name, comment FROM Remote ORDER BY name COLLATE NOCASE ASC")
         remotes = cursor.fetchall()
         conn.close()
         
