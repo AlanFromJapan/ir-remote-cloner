@@ -113,8 +113,12 @@ def generate_arduino_code(remote_id: int):
         print(f"No keys found for remote '{remote_name}'.")
         return  
     
-    print(f"{terminal_colors.OKGREEN}// Arduino code for remote: {remote_name}\n")
-    print("#include <IRremote.h>\n")
+    print(f"{terminal_colors.OKGREEN}// Arduino code for remote: {remote_name}")
+    print("// Start from the code of IRremote library sample 'SimpleSender' and overwrite the whole code with below.\n")
+
+    print("#include <Arduino.h>")
+    print("#include \"PinDefinitionsAndMore.h\"")
+    print("#include <IRremote.hpp>\n")
     print("IRsend irsend;\n")
     print("void setup() {")
     print("\t// Nothing to setup")
@@ -129,6 +133,7 @@ def generate_arduino_code(remote_id: int):
         protocol_name = protocol_to_string(int(protocol_id))
         print(f"\t// Sending key: {key_name} = CMD {command} ({hex(int(command))}) at ADDR {address} ({hex(int(address))}) using protocol: [{protocol_id}] {protocol_name}")
         print(f"\tirsend.send{protocol_sign}({address}, {command}, sRepeats);")
+        print("\tdelay(2000);  // Wait 2 seconds between commands")
         print("")
 
     print(f"}}{terminal_colors.ENDC}")
