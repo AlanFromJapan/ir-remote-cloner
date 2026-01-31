@@ -5,43 +5,15 @@ Connects to a serial device to capture IR remote codes and stores them in SQLite
 """
 
 import time
-import sqlite3
 import sys
-import os
 import select
 import termios
 import tty
 import argparse
-from typing import Optional, Tuple, List
-from  enum import Enum
-
-#from IRProtocol.h
-class Protocol(Enum):
-    UNKNOWN = 0
-    PULSE_WIDTH = 1
-    PULSE_DISTANCE = 2
-    APPLE = 3
-    DENON = 4
-    JVC = 5
-    LG = 6
-    LG2 = 7
-    NEC = 8
-    NEC2 = 9
-    ONKYO = 10
-    PANASONIC = 11
-    KASEIKYO = 12
-    KASEIKYO_DENON = 13
-    KASEIKYO_SHARP = 14
-    KASEIKYO_JVC = 15
-    KASEIKYO_MITSUBISHI = 16
-    RC5 = 17
-    RC6 = 18
-    RC6A = 19
-    SAMSUNG = 20
-    SAMSUNGLG = 21
-    SAMSUNG48 = 22
-    SHARP = 23
-    SONY = 24
+from typing import Optional
+from db import Database
+from terminal_colors import terminal_colors
+from codegen import generate_arduino_code
 
 
 
@@ -55,124 +27,8 @@ except ImportError:
     print("Install with: pip install pyserial")
 
 
-class terminal_colors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    SERIAL_DATA = '\033[92m'
 
-class Database:
-    """Handles SQLite database operations"""
-    
-    def __init__(self, db_path: str = "ir_remotes.db"):
-        self.db_path = db_path
-        self.init_database()
-    
-    def init_database(self):
-        """Initialize the database with required tables"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Create Remote table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Remote (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                comment TEXT
-            )
-        """)
-        
-        # Create Key table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Key (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                remote_id INTEGER NOT NULL,
-                protocol TEXT NOT NULL,
-                address TEXT NOT NULL,
-                command TEXT NOT NULL,
-                key_name TEXT NOT NULL,
-                comment TEXT,
-                FOREIGN KEY (remote_id) REFERENCES Remote (id),
-                UNIQUE(remote_id, key_name)
-            )
-        """)
-        
-        conn.commit()
-        conn.close()
-    
-    def create_remote(self, name: str, comment: str = None) -> int:
-        """Create a new remote and return its ID"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("INSERT INTO Remote (name, comment) VALUES (?, ?)", (name, comment))
-            remote_id = cursor.lastrowid
-            conn.commit()
-            return remote_id
-        except sqlite3.IntegrityError:
-            raise ValueError(f"Remote with name '{name}' already exists")
-        finally:
-            conn.close()
-    
-    def list_remotes(self) -> List[Tuple]:
-        """List all remotes"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, name, comment FROM Remote ORDER BY name COLLATE NOCASE ASC")
-        remotes = cursor.fetchall()
-        conn.close()
-        
-        return remotes
-    
-    def get_remote(self, remote_id: int) -> Optional[Tuple]:
-        """Get remote by ID"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id, name, comment FROM Remote WHERE id = ?", (remote_id,))
-        remote = cursor.fetchone()
-        conn.close()
-        
-        return remote
-    
-    def add_key(self, remote_id: int, protocol: str, address: str, command: str, 
-                key_name: str, comment: str = None):
-        """Add a new key to a remote"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        try:
-            cursor.execute("""
-                INSERT OR REPLACE INTO Key (remote_id, protocol, address, command, key_name, comment)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (remote_id, protocol, address, command, key_name, comment))
-            conn.commit()
-        finally:
-            conn.close()
-    
-    def get_keys_for_remote(self, remote_id: int) -> List[Tuple]:
-        """Get all keys for a specific remote"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT key_name, protocol, address, command, comment 
-            FROM Key 
-            WHERE remote_id = ? 
-            ORDER BY key_name
-        """, (remote_id,))
-        keys = cursor.fetchall()
-        conn.close()
-        
-        return keys
+
 
 
 class SerialHandler:
@@ -268,6 +124,7 @@ class IRRemoteCloner:
         print("3 - Register new keys")
         print("4 - View registered keys")
         print("5 - Read serial data (debug)")
+        print("6 - Generate Arduino code")
         print(terminal_colors.FAIL + "q - Quit" + terminal_colors.ENDC)
         print()
     
@@ -275,9 +132,9 @@ class IRRemoteCloner:
         """Handle creating a new remote"""
         print("\n--- Create New Remote ---")
         
-        name = input("Enter remote name: ").strip()
+        name = input("Enter remote name (empty to cancel): ").strip()
         if not name:
-            print("Error: Remote name cannot be empty")
+            print("Cancelled creating new remote.")
             return
         
         comment = input("Enter comment (optional): ").strip()
@@ -510,6 +367,8 @@ class IRRemoteCloner:
                     self.view_registered_keys()
                 elif choice == '5':
                     self.debug_show_serial()
+                elif choice == '6':
+                    self.generate_arduino_code()
                 elif choice == 'q':
                     print("\nGoodbye!")
                     break
@@ -526,15 +385,44 @@ class IRRemoteCloner:
             self.serial_handler.disconnect()
 
 
+    def generate_arduino_code(self):
+        """Generate Arduino code for a selected remote"""
+        print("\n--- Generate Arduino Code ---")
+        
+        # Show available remotes
+        remotes = self.db.list_remotes()
+        if not remotes:
+            print("No remotes found. Please create a remote first.")
+            return
+        
+        print("Available remotes:")
+        for remote_id, name, comment in remotes:
+            print(f"  {remote_id}: {name}")
+        
+        # Get remote ID
+        try:
+            remote_id = int(input("\nEnter remote ID: "))
+            remote = self.db.get_remote(remote_id)
+            if not remote:
+                print("Error: Invalid remote ID")
+                return
+        except ValueError:
+            print("Error: Invalid remote ID")
+            return
+        
+        # Generate Arduino code
+        generate_arduino_code(remote_id)
+
+
 def main():
     """Entry point"""
     parser = argparse.ArgumentParser(description='IR Remote Cloner - Capture and store IR remote codes')
     parser.add_argument('--port', '-p', 
-                       default='/dev/ttyUSB0',
-                       help='Serial port to connect to (default: /dev/ttyUSB0)')
+                       default='/dev/ttyACM1',
+                       help='Serial port to connect to (default: /dev/ttyACM1)')
     parser.add_argument('--baudrate', '-b', 
-                       default='9600',
-                       help='Baud rate for serial communication (default: 9600)')    
+                       default='115200',
+                       help='Baud rate for serial communication (default: 115200)')    
     
     args = parser.parse_args()
     
