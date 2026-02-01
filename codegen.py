@@ -3,7 +3,7 @@
 from enum import Enum
 from db import Database
 from terminal_colors import terminal_colors
-
+import os
 
 class Protocol(Enum):
     UNKNOWN = 0
@@ -112,28 +112,43 @@ def generate_arduino_code(remote_id: int):
     if not keys:
         print(f"No keys found for remote '{remote_name}'.")
         return  
-    
-    print(f"{terminal_colors.OKGREEN}// Arduino code for remote: {remote_name}")
-    print("// Start from the code of IRremote library sample 'SimpleSender' and overwrite the whole code with below.\n")
 
-    print("#include <Arduino.h>")
-    print("#include \"PinDefinitionsAndMore.h\"")
-    print("#include <IRremote.hpp>\n")
-    print("IRsend irsend;\n")
-    print("void setup() {")
-    print("\t// Nothing to setup")
-    print("}\n")
+    s = ""
     
-    print("void loop() {")
-    print("\tuint8_t sRepeats = 0;  // Adjust repeat count as needed\n")
+    s = s + f"// Arduino code for remote: {remote_name}\n"
+    s = s + "// Start from the code of IRremote library sample 'SimpleSender' and overwrite the whole code with below.\n\n"
+
+    s = s + "#include <Arduino.h>\n"
+    s = s + "#include \"PinDefinitionsAndMore.h\"\n"
+    s = s + "#include <IRremote.hpp>\n\n"
+    s = s + "IRsend irsend;\n\n"
+    s = s + "void setup() { \n"
+    s = s + "\t// Nothing to setup  \n"
+    s = s + "}\n\n"
+    
+    s = s + "void loop() {  \n"
+    s = s + "\tuint8_t sRepeats = 0;  // Adjust repeat count as needed\n\n"
 
     for key in keys:
         key_name, protocol_id, address, command, _ = key
         protocol_sign = protocol_to_arduino_signature(int(protocol_id))
         protocol_name = protocol_to_string(int(protocol_id))
-        print(f"\t// Sending key: {key_name} = CMD {command} ({hex(int(command))}) at ADDR {address} ({hex(int(address))}) using protocol: [{protocol_id}] {protocol_name}")
-        print(f"\tirsend.send{protocol_sign}({address}, {command}, sRepeats);")
-        print("\tdelay(2000);  // Wait 2 seconds between commands")
-        print("")
+        s = s + f"\t// Sending key: {key_name} = CMD {command} ({hex(int(command))}) at ADDR {address} ({hex(int(address))}) using protocol: [{protocol_id}] {protocol_name}\n"
+        s = s + f"\tirsend.send{protocol_sign}({address}, {command}, sRepeats);\n"
+        s = s + "\tdelay(2000);  // Wait 2 seconds between commands\n"
+        s = s + "\n"
 
-    print(f"}}{terminal_colors.ENDC}")
+    s = s + "}\n"
+
+    print(f"{terminal_colors.OKGREEN}{s}{terminal_colors.ENDC}")
+
+    # Save to file
+    filename = f"arduino/output/remote_{remote_id}_arduino_code.ino"
+
+    #make sure directory exists    
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+    with open(filename, "w") as f:
+        f.write(s)
+        
+    print(f"{terminal_colors.OKBLUE}Arduino code saved to file: {filename}{terminal_colors.ENDC}")
