@@ -2,6 +2,8 @@
 
 A command line application to capture, store, and manage IR remote control codes using a serial-connected device (like an Arduino with IR receiver).
 
+![proto board](assets/ir-remote-receiver-arduinoproto.jpg)
+
 ## Features
 
 - **SQLite Database Storage**: Stores remotes and their key codes in a local SQLite database
@@ -30,6 +32,10 @@ python app.py
 1. **Create a New Remote**: Register a new remote control device with name and optional comment
 2. **List Remotes**: Display all registered remotes in a table format
 3. **Register New Keys**: Capture IR codes for a specific remote
+4. **View Registered Keys**: Display all captured IR codes for a selected remote
+5. **Read Serial Data (Debug)**: Debug mode to view raw serial data from the connected device
+6. **Generate Arduino Code**: Generate Arduino code for transmitting the captured IR codes
+
 
 ### Serial Device Format
 
@@ -40,8 +46,8 @@ protocol;code1;code2
 
 For example:
 ```
-NEC;0xFF629D;0x0
-RC5;0x1234;0x5678
+8;213;234
+3;875;123
 ```
 
 ### Database Schema
@@ -54,8 +60,10 @@ The application creates two tables:
 ## Hardware Requirements
 
 - Serial device (e.g., Arduino with IR receiver) that sends IR codes in the expected format
-- Default serial port: `/dev/ttyUSB0` (configurable during key registration)
-- Default baud rate: 9600
+- Default serial port: `/dev/ttyACM1` (configurable during key registration) 
+  - Override with `-p </dev/whatever>`
+- Default baud rate: 115200
+  - Override with `-b <baudrate>`
 
 ## Controls
 
@@ -68,3 +76,13 @@ The application creates two tables:
 - Invalid serial ports are handled with warnings
 - Database integrity is maintained with unique constraints
 - Input validation prevents empty or invalid entries
+
+# Electronics
+
+## Arduino code
+
+In the folder `arduino\`:
+* **ir-remote-receiver** : just the receiver code to use with the python main program
+* **ir-remote-sender** : send sample IR codes linked to the 3 buttons
+* **ir-remote-multimode** : combo of both above, with one button dedicated to switch modes
+
