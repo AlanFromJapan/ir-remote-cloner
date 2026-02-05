@@ -4,13 +4,24 @@ A command line application to capture, store, and manage IR remote control codes
 
 ![proto board](assets/ir-remote-receiver-arduinoproto.jpg)
 
-## Features
+## Functionalities
+
+- [x] Receive fixed IR codes from most standard formats (NEC) 
+- [x] Debug mode view output
+- [x] Save/read codes
+- [x] Generate sample Arduino code for fixed codes remote clone
+- [ ] Receive variable IR codes (ie: air conditionner)
+- [ ] Analyze variable codes
+- [ ] Generate sample Arduino code for variable codes remote clone
+
+## Technical Features
 
 - **SQLite Database Storage**: Stores remotes and their key codes in a local SQLite database
 - **Serial Communication**: Connects to devices via serial port to receive IR codes
 - **Remote Management**: Create and list IR remotes with descriptions
 - **Key Registration**: Capture IR codes and associate them with labeled keys
 - **Minimal Dependencies**: Uses standard Python libraries where possible
+
 
 ## Installation
 
