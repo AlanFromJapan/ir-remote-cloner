@@ -125,6 +125,7 @@ class IRRemoteCloner:
         print("4 - View registered keys")
         print("5 - Read serial data (debug)")
         print("6 - Generate Arduino code")
+        print("7 - Send code to Arduino")
         print(terminal_colors.FAIL + "q - Quit" + terminal_colors.ENDC)
         print()
     
@@ -310,7 +311,7 @@ class IRRemoteCloner:
         remotes = self.db.list_remotes()
         if not remotes:
             print("No remotes found. Please create a remote first.")
-            return
+            return -1
         
         print("Available remotes:")
         for remote_id, name, comment in remotes:
@@ -322,10 +323,10 @@ class IRRemoteCloner:
             remote = self.db.get_remote(remote_id)
             if not remote:
                 print("Error: Invalid remote ID")
-                return
+                return -1
         except ValueError:
             print("Error: Invalid remote ID")
-            return
+            return -1
         
         print(f"\nRegistered keys for remote: {remote[1]}")
         
@@ -334,7 +335,7 @@ class IRRemoteCloner:
         
         if not keys:
             print("No keys registered for this remote.")
-            return
+            return -1
         
         # Display keys in a table format
         print("\n" + "-" * 80)
@@ -348,6 +349,55 @@ class IRRemoteCloner:
         print("-" * 80)
         print(f"Total keys: {len(keys)}")
     
+        return remote_id
+
+
+    def send_code_to_arduino(self):
+        # Sends code to the arduino via serial. This is a placeholder for future implementation.
+        print(terminal_colors.OKGREEN + ">> First, pick a remote and code to generate send." + terminal_colors.ENDC)
+        remote_id = self.view_registered_keys()
+        if remote_id <= -1:
+            return
+        
+        try:      
+            print (terminal_colors.OKGREEN + ">> Enter key name to send or empty to cancel:" + terminal_colors.ENDC)      
+            keyname = input("\nEnter key name (case insensitive): ").strip()
+            if not keyname:
+                print("Cancelled sending code.")
+                return            
+
+            keys = self.db.get_keys_for_remote(remote_id)
+            key_found = [k for k in keys if k[0].lower() == keyname.lower()]
+            if not key_found:
+                print(terminal_colors.FAIL + f"Error: Key '{keyname}' not found for this remote." + terminal_colors.ENDC)
+                return
+
+            key_tuple = key_found[0]
+
+            print(f">> Sending code for key '{keyname}' [{key_tuple}] to Arduino..." )
+
+            print(terminal_colors.WARNING + "Now turn the Arduino in receiver mode and press [Enter] to send the code." + terminal_colors.ENDC)
+            input()
+
+            # Try to connect to serial
+            if SERIAL_AVAILABLE:
+                if not self.serial_handler.connect():
+                    print(f"Warning: Could not connect to serial port {self.serial_handler.port}")
+                    return            
+                # Send the code in a simple format: address|command
+                code_str = f"{key_tuple[2]}|{key_tuple[3]}\n"  # address|command
+                self.serial_handler.connection.write(code_str.encode('ascii'))
+                print ("> Code sent: " + code_str)
+
+            else:
+                print(terminal_colors.FAIL + "Serial functionality not available. Please install pyserial." + terminal_colors.ENDC)
+                return
+
+        except ValueError:
+            print("Error: Invalid remote ID")
+            return
+
+
     def run(self):
         """Main application loop"""
         try:
@@ -369,6 +419,8 @@ class IRRemoteCloner:
                     self.debug_show_serial()
                 elif choice == '6':
                     self.generate_arduino_code()
+                elif choice == '7':
+                    self.send_code_to_arduino()
                 elif choice == 'q':
                     print("\nGoodbye!")
                     break

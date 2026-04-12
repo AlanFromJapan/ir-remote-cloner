@@ -66,18 +66,54 @@ void set_mode(){
 * Allow the 2 buttons to send IR codes
 */
 void mode_sender (){
-	uint8_t sRepeats = 0;  // Adjust repeat count as needed
 
-  if (digitalRead(PIN_BUTTON2) == LOW){
-    // Sending key: All lights ON = CMD 166 (0xa6) at ADDR 28034 (0x6d82) using protocol: [8] NEC
-    irsend.sendNEC(28034, 166, sRepeats);
-    delay(1000);  // Wait 2 seconds between commands     
+  //clear Serial input buffer
+  while (Serial.available() > 0) {
+    Serial.read();
   }
-  if (digitalRead(PIN_BUTTON3) == LOW){
-    // Sending key: Lights OFF = CMD 190 (0xbe) at ADDR 28034 (0x6d82) using protocol: [8] NEC
-    irsend.sendNEC(28034, 190, sRepeats);
-    delay(1000);  // Wait 2 seconds between commands 
+
+  //Main loop: waiting for message to send, or exit command, or press to change mode
+  while (1){
+
+    //Serial message : read serial input line
+    if (Serial.available() > 0) {
+      String input = Serial.readStringUntil('\n');
+      input.trim(); // Remove any leading/trailing whitespace
+
+      // Expected input format : address|command
+      // Will send only NEC protocol, and no repeat count (0)
+      int separatorIndex = input.indexOf('|');
+      if (separatorIndex > 0) {
+        String addressStr = input.substring(0, separatorIndex);
+        String commandStr = input.substring(separatorIndex + 1); 
+        uint32_t address = strtoul(addressStr.c_str(), NULL, 0); // Convert to unsigned long
+        uint32_t command = strtoul(commandStr.c_str(), NULL, 0);
+        irsend.sendNEC(address, command, 0);
+
+        Serial.print("Sent Address=[");
+        Serial.print(address);
+        Serial.print("] Command=[");
+        Serial.print(command);
+        Serial.println("]");
+      } else {
+        Serial.println(F("Invalid input format. Use: address|command"));
+      }
+
+    }
+    
+
+
+    if (digitalRead(PIN_BUTTON1) == LOW){
+      // Black button pressed, exit sender mode
+      sMODE = MODE_RECEIVER;
+      set_mode();
+      //debounce on the cheap
+      delay(250);
+      return;
+    }
   }
+
+
 }
 
 /**
