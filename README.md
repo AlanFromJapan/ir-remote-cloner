@@ -10,6 +10,7 @@ A command line application to capture, store, and manage IR remote control codes
 - [x] Debug mode view output
 - [x] Save/read codes
 - [x] Generate sample Arduino code for fixed codes remote clone
+- [x] Send dynamically previously recorded IR code via arduino
 - [ ] Receive variable IR codes (ie: air conditionner)
 - [ ] Analyze variable codes
 - [ ] Generate sample Arduino code for variable codes remote clone
